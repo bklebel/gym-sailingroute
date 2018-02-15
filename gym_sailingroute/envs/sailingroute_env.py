@@ -20,8 +20,9 @@ class SailingrouteEnv(gym.Env):
 
     self.observation_space = spaces.Dict({"pos_start": spaces.Box(low=0, high=self.size, shape=(2,)), 
                                           "pos_goal":  spaces.Box(low=0, high=self.size, shape=(2,)), 
-                                          "boat": spaces.Box(low=-40, high=40, shape=(18,20)),  # to be corrected!
-                                          "wind": spaces.Box(low=0, high=40, shape=(self.size,self.size))}) # to be corrected!
+                                          "boat": spaces.Box(low=-40, high=40, shape=(18,20)),  
+                                          "wind": spaces.Box(low=0, high=40, shape=(self.size,self.size)), # to be corrected for dict and stuff
+                                          "depth": spaces.Box(low=0, high=30, shape=(self.size, self.size))}) 
     self.action_space = spaces.Discrete(360)
 
     self.state = None # observation 
@@ -47,12 +48,18 @@ class SailingrouteEnv(gym.Env):
   def seed(s)
     np.random.seed(s)
 
+  def speed(x, y, heading, weather, boat):
+    return boatf.speed(x, y, heading, weather, boat)
+
 
 
 
 class SailingrouteExtraHardEnv(SailingrouteEnv): 
   def __init__(size=500):
     super().__init__(size)
+
+  def speed(x, y, heading, weather, boat):
+    return boatf.speed(x, y, heading, weather, boat)*0.6
 
 
 
