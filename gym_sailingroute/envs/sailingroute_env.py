@@ -24,6 +24,8 @@ class SailingrouteEnv(gym.Env):
                                           "wind": spaces.Box(low=0, high=40, shape=(self.size,self.size))}) # to be corrected!
     self.action_space = spaces.Discrete(360)
 
+    self.state = None # observation 
+
 
   def step(self, action):
     pass 
@@ -31,7 +33,13 @@ class SailingrouteEnv(gym.Env):
     self.mesh, _, self.boat = boatf.generate_boat_complete()
     self.mesh_r, self.boat_r = boatf.boat_array_reduction(self.mesh, self.boat)
 
-    self.wind = boatf.generate_wind_field(maximum=self.size)
+    self.wind = boatf.generate_wind_field(n_steps=self.size)
+
+    self.state = {'pos_start' : boatf.generate_random_point(self.size), 
+                  'pos_goal' : boatf.generate_random_point(self.size), 
+                  'boat' : self.boat_r,
+                  'wind' : self.wind
+                  }
     
 
   def render(self, mode='human', close=False):
@@ -42,7 +50,9 @@ class SailingrouteEnv(gym.Env):
 
 
 
-
+class SailingrouteExtraHardEnv(SailingrouteEnv): 
+  def __init__(size=500):
+    super().__init__(size)
 
 
 
