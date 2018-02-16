@@ -25,26 +25,47 @@ class SailingrouteEnv(gym.Env):
                                           "wind": spaces.Box(low=0, high=40, shape=(self.size,self.size)), # to be corrected for dict and stuff
                                           "depth": spaces.Box(low=0, high=30, shape=(self.size, self.size))}) 
     self.action_space = spaces.Discrete(360)
+ 
+    self.threshold = 0.01 # maximum distance to target to end the episode
+    reward_range = (-100, 100)
 
-    self.state = None # observation 
-
+    action_space = None
+    observation_space = None
 
   def step(self, action):
     pass 
+    info = None
+
+    if abs(self.state['pos_start'] - self.state['pos_goal']) <= self.threshold: 
+      return self.state, 100, True, None
+
+    speed = self.speed(self.state['pos_start'][0], self.state['pos_start'][1], 
+                       self.state['wind'], self.boat, 
+                       self.state['heading_last'], action)
+
+    # calculate additional reward
+    self.state['pos_start'] =   update_pos(self.state['pos_start'][0], self.state['pos_start'][1], 
+                                           action, speed)
+                       
+
+    return self.state, reward, done, info 
+    # return observation, reward, done, info
+
+
   def reset(self):
     self.mesh, _, self.boat = boatf.generate_boat_complete()
     self.mesh_r, self.boat_r = boatf.boat_array_reduction(self.mesh, self.boat)
 
-    self.wind = boatf.generate_wind_field(n_steps=self.size)
-
     self.state = {'pos_start' : boatf.generate_random_point(self.size), 
                   'pos_goal' : boatf.generate_random_point(self.size), 
-                  'heading_last' : 0
+                  'heading_last' : 0, 
                   'boat' : self.boat_r,
-                  'wind' : self.wind
+                  'wind' : boatf.generate_wind_field(n_steps=self.size)
                   }
 
     self.boat_max_speed = np.max(self.boat)
+
+    return self.state
     
 
   def render(self, mode='human', close=False):
@@ -52,14 +73,18 @@ class SailingrouteEnv(gym.Env):
   def seed(s)
     np.random.seed(s)
 
-  def speed(x, y, heading, weather, boat, heading_last):
+  def speed(x, y, weather, boat, heading_last, heading):
     # TODO: reduce speed after turning corresponding to turn_angle/180
       # if turn_angle = 180, next speed step will be half as fast as without penalty,
       # if turn_angle = 0, no speed penalty is applied
       # speed = bf.speed()
       # speed -= speed*turn_angle/180
     speed = boatf.speed(x, y, heading, weather, boat)
-    turn_angle = None # to be corrected
+    turn_angle = abs(heading - heading_last) # to be corrected
+
+    if turn_angle > 180: 
+      turn_angle = abs(360-turn_angle)
+
     return speed -= speed*abs(turn_angle)/180*0.5
 
 
