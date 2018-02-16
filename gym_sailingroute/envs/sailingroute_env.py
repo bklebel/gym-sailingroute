@@ -20,6 +20,7 @@ class SailingrouteEnv(gym.Env):
 
     self.observation_space = spaces.Dict({"pos_start": spaces.Box(low=0, high=self.size, shape=(2,)), 
                                           "pos_goal":  spaces.Box(low=0, high=self.size, shape=(2,)), 
+                                          "heading_last" : spaces.Discrete() # finish up
                                           "boat": spaces.Box(low=-40, high=40, shape=(18,20)),  
                                           "wind": spaces.Box(low=0, high=40, shape=(self.size,self.size)), # to be corrected for dict and stuff
                                           "depth": spaces.Box(low=0, high=30, shape=(self.size, self.size))}) 
@@ -38,9 +39,12 @@ class SailingrouteEnv(gym.Env):
 
     self.state = {'pos_start' : boatf.generate_random_point(self.size), 
                   'pos_goal' : boatf.generate_random_point(self.size), 
+                  'heading_last' : 0
                   'boat' : self.boat_r,
                   'wind' : self.wind
                   }
+
+    self.boat_max_speed = np.max(self.boat)
     
 
   def render(self, mode='human', close=False):
@@ -48,8 +52,15 @@ class SailingrouteEnv(gym.Env):
   def seed(s)
     np.random.seed(s)
 
-  def speed(x, y, heading, weather, boat):
-    return boatf.speed(x, y, heading, weather, boat)
+  def speed(x, y, heading, weather, boat, heading_last):
+    # TODO: reduce speed after turning corresponding to turn_angle/180
+      # if turn_angle = 180, next speed step will be half as fast as without penalty,
+      # if turn_angle = 0, no speed penalty is applied
+      # speed = bf.speed()
+      # speed -= speed*turn_angle/180
+    speed = boatf.speed(x, y, heading, weather, boat)
+    turn_angle = None # to be corrected
+    return speed -= speed*abs(turn_angle)/180*0.5
 
 
 
