@@ -27,10 +27,10 @@ class SailingrouteEnv(gym.Env):
     self.action_space = spaces.Discrete(360)
  
     self.threshold = 0.01 # maximum distance to target to end the episode
-    reward_range = (-100, 100)
+    self.reward_range = (-100, 100)
 
-    action_space = None
-    observation_space = None
+    # action_space = None
+    # observation_space = None
 
   def step(self, action):
     pass 
