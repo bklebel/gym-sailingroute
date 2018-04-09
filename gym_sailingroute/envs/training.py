@@ -51,12 +51,8 @@ def _standardize_input_data(data, names, shapes=None,
     # Raises
         ValueError: in case of improperly formatted user-provided data.
     """
-    if data.shape == (1,1): 
-        if isinstance(data[0][0], dict): data = data[0][0]
-    print([names[i] for i in range(len(names))])
-    print(shapes)
-    print([len(shapes[i]) for i in range(len(names))] )
-    print([len(data[names[i]].shape) for i in range(len(names))] )
+    print(type(data))
+    print(data[0])    
     if not names:
         if data is not None and hasattr(data, '__len__') and len(data):
             raise ValueError('Error when checking model ' +
@@ -65,6 +61,21 @@ def _standardize_input_data(data, names, shapes=None,
         return []
     if data is None:
         return [None for _ in range(len(names))]
+
+
+    if isinstance(data, np.ndarray): 
+        if hasattr(data[0], 'shape'): 
+            # print('I have a shape, it is: ', data[0].shape)
+            if data.shape == (1,1): 
+                if isinstance(data[0][0], dict): 
+                    data = data[0][0]
+                    print([names[i] for i in range(len(names))])
+                    print(shapes)
+                    print([len(shapes[i]) for i in range(len(names))] )
+                    print([len(data[names[i]].shape) for i in range(len(names))] )
+
+
+
     if isinstance(data, dict):
         print("I am a dict!")
         for key, value in data.items():
@@ -748,7 +759,7 @@ class Model(Container):
             if i in skip_target_indices:
                 self.targets.append(None)
             else:
-                shape = self.internal_output_shapes[i]
+                shape = self._internal_output_shapes[i]
                 name = self.output_names[i]
                 if target_tensors is not None:
                     target = target_tensors[i]
@@ -914,7 +925,7 @@ class Model(Container):
                         if metric == 'accuracy' or metric == 'acc':
                             # custom handling of accuracy
                             # (because of class mode duality)
-                            output_shape = self.internal_output_shapes[i]
+                            output_shape = self._internal_output_shapes[i]
                             if (output_shape[-1] == 1 or
                                self.loss_functions[i] == losses.binary_crossentropy):
                                 # case: binary accuracy

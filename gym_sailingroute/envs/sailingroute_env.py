@@ -51,10 +51,10 @@ def generate_boat_complete( cardioid=cardioid_r):
   wind_first  = np.delete(wind_first, 0)
   wind = np.random.uniform(wind_first, wind_second)
   phi = np.radians(np.linspace(1, 179, 179))
-  boat = np.zeros((len(phi), len(wind)))
+  boat = np.zeros((len(phi), len(wind), 1))
   factor = np.random.uniform(1, 3)
   for i in range(len(wind)):
-    boat[:, i] =  cardioid(phi=phi, a=wind[i], factor = factor)
+    boat[:, i, 0] =  cardioid(phi=phi, a=wind[i], factor = factor)
   second = np.insert(np.insert(boat, 0, 0, axis=0), 0, 0, axis=1)
   mesh = np.meshgrid(np.insert(wind_first, 0, 0), np.insert(phi, 0, 0))
   # print(mesh[0].shape, second.shape)
@@ -215,6 +215,10 @@ def update_pos( x, y, heading, speed):
 # boatf = boatfunc()
 
 
+
+
+
+
 class SailingrouteEnv(gym.Env):
   metadata = {'render.modes': ['human']}
 
@@ -224,17 +228,17 @@ class SailingrouteEnv(gym.Env):
                              # 1 corresponds to 1h/step, 2 corresponds to 0.5h/step and so on
     self.resolution = resolution # this determines the resolution of the grid - which corresponds to the wind observation! 
     assert self.resolution == 20 # DO NOT CHANGE THIS! - 400 "pixel" for the NN (20x20)
-    self.reset()
 
     self.observation_space = spaces.Dict({"position": spaces.Box(low=0, high=self.size, shape=(2,2)), 
+                                          "wind": spaces.Box(low=0, high=40, shape=(self.size,self.size)), # to be corrected for dict and stuff
                                           # "pos_goal":  spaces.Box(low=0, high=self.size, shape=(2,)), 
                                           #"heading_last" : spaces.Discrete() # finish up
-                                          "boat": spaces.Box(low=-40, high=40, shape=(18,20)),  
-                                          "wind": spaces.Box(low=0, high=40, shape=(self.size,self.size)) # to be corrected for dict and stuff
+                                          "boat": spaces.Box(low=-40, high=40, shape=(18,20,1))                                          
                                           #"depth": spaces.Box(low=0, high=30, shape=(self.size, self.size))
                                           }) 
     self.action_space = spaces.Discrete(360)
- 
+    self.reset()
+
     self.threshold = 0.01 # maximum distance to target to end the episode
     self.reward_range = (-1, 1)
 
@@ -245,15 +249,16 @@ class SailingrouteEnv(gym.Env):
     
     info = None
 
-    if abs(self.state['pos_start'] - self.state['pos_goal']) <= self.threshold: 
+    if abs(self.state['position'][0] - self.state['position'][1]) <= self.threshold: 
+      # start - goal
       return self.state, 1, True, None
 
-    speed = self.speed(self.state['pos_start'][0], self.state['pos_start'][1], 
+    speed = self.speed(self.state['position'][0][0], self.state['position'][0][1], 
                        self.state['wind'], self.boat, 
                        action)
 
     # calculate additional reward
-    self.state['pos_start'] =   update_pos(self.state['pos_start'][0], self.state['pos_start'][1], 
+    self.state['position'][0] =   update_pos(self.state['position'][0][0], self.state['position'][0][1], 
                                            action, speed)
     print(self.state)
 
@@ -272,11 +277,11 @@ class SailingrouteEnv(gym.Env):
     self.mesh_r, self.boat_r = boat_array_reduction(**dic) #, self.boat)
 
     windfield = generate_wind_field(n_steps=self.resolution, maximum=self.size)
-    self.state = {'position' : np.array([generate_random_point(self.size),generate_random_point(self.size)]), 
+    self.state = {'wind' : np.array([windfield['u'], windfield['v']]),
+                  'position' : np.array([generate_random_point(self.size),generate_random_point(self.size)]), 
                   # 'pos_goal' : generate_random_point(self.size), 
                   # 'heading_last' : 0, 
-                  'boat' : self.boat_r,
-                  'wind' : np.array([windfield['u'], windfield['v']])
+                  'boat' : self.boat_r                  
                   }
 
     self.boat_max_speed = np.max(self.boat) # needs to be updated in case of function and continuity
