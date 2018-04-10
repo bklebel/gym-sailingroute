@@ -212,7 +212,7 @@ def _speed(x, y, heading, weather, boat):
     
   assert twa <= 179
   speedo = boat[twa, np.abs(boat[twa]-tws).argmin()][0]
-  print('twa',  np.degrees(twh), tws, twa, heading, speedo, x, y )
+  # print('twa',  np.degrees(twh), tws, twa, heading, speedo, x, y )
   return speedo, twa, tws, np.degrees(twh) 
   # check this for correct tws/twa mapping to boat-array! 
 
@@ -280,7 +280,7 @@ class SailingrouteEnv(gym.Env):
     done = False
     info = {'some': 'thing'}
 
-    print('made step', self.count)
+    # print('made step', self.count)
     self.count +=1
     return self.state, reward, done, info 
     # return observation, reward, done, info
