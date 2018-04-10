@@ -212,7 +212,7 @@ def _speed(x, y, heading, weather, boat):
     
   assert twa <= 179
   speedo = boat[twa, np.abs(boat[twa]-tws).argmin()][0]
-  print('twa', twa, heading, np.degrees(twh), tws, speedo )
+  print('twa',  np.degrees(twh), tws, twa, heading, speedo, x, y )
   return speedo, twa, tws, np.degrees(twh) 
   # check this for correct tws/twa mapping to boat-array! 
 
@@ -249,7 +249,7 @@ class SailingrouteEnv(gym.Env):
     self.action_space = spaces.Discrete(360)
     self.reset()
 
-    self.threshold = 5 # maximum distance to target to end the episode
+    self.threshold = 20 # maximum distance to target to end the episode
     self.reward_range = (-1, 1)
     self.count = 0
 
@@ -265,7 +265,7 @@ class SailingrouteEnv(gym.Env):
 
     if distance <= self.threshold: 
       return self.state, 2, True, {'goal': 'reached'}
-    if self.state['position'][0][0] > self.size or self.state['position'][0][1] > self.size: 
+    if abs(self.state['position'][0][0]) > self.size or abs(self.state['position'][0][1]) > self.size: 
       return self.state, -2, True, {'goal': 'missed'}
 
     speed = self.speed(self.state['position'][0][0], self.state['position'][0][1], 
