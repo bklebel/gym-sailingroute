@@ -51,8 +51,6 @@ def _standardize_input_data(data, names, shapes=None,
     # Raises
         ValueError: in case of improperly formatted user-provided data.
     """
-    print(type(data))
-    print(data[0])    
     if not names:
         if data is not None and hasattr(data, '__len__') and len(data):
             raise ValueError('Error when checking model ' +
@@ -61,23 +59,7 @@ def _standardize_input_data(data, names, shapes=None,
         return []
     if data is None:
         return [None for _ in range(len(names))]
-
-
-    if isinstance(data, np.ndarray): 
-        if hasattr(data[0], 'shape'): 
-            # print('I have a shape, it is: ', data[0].shape)
-            if data.shape == (1,1): 
-                if isinstance(data[0][0], dict): 
-                    data = data[0][0]
-                    print([names[i] for i in range(len(names))])
-                    print(shapes)
-                    print([len(shapes[i]) for i in range(len(names))] )
-                    print([len(data[names[i]].shape) for i in range(len(names))] )
-
-
-
     if isinstance(data, dict):
-        print("I am a dict!")
         for key, value in data.items():
             if value.__class__.__name__ == 'DataFrame':
                 data[key] = value.values
@@ -152,6 +134,9 @@ def _standardize_input_data(data, names, shapes=None,
                 continue
             array = arrays[i]
             if len(array.shape) != len(shapes[i]):
+                print(array.shape, len(array.shape))
+                print(shapes[i], len(shapes[i]))
+                print(array)
                 raise ValueError('Error when checking ' + exception_prefix +
                                  ': expected ' + names[i] +
                                  ' to have ' + str(len(shapes[i])) +

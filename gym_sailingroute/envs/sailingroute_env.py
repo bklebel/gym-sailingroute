@@ -8,6 +8,7 @@ import time
 import sys
 import scipy
 
+
 PI = 3.14159265358979323846264338327
 
 # import boatfunc_discrete as boatf
@@ -103,9 +104,11 @@ def generate_random_sign(length):
     r.append(a)
   return r
 
-def generate_random_point( maximum):
+def generate_random_point(maximum, pos=False):
   x = np.random.rand()*(maximum-maximum/10) # *random[0]
   y = np.random.rand()*(maximum-maximum/10) # *random[1]
+  if pos: 
+      return np.array([[x], [y]])
   return [x, y]
 
 def generate_obstacle_function(maximum, x, y):
@@ -145,8 +148,8 @@ def generate_wind_field( maximum = 100, n_steps=10, plotting_scale = 5):
     for j in range(twh.shape[1]): 
       twh[i,j] += 15
 
-  dx = tws*np.cos(twh)*1e3
-  dy = tws*np.sin(twh)*1e3
+  dx = tws*np.cos(twh)*1e2
+  dy = tws*np.sin(twh)*1e2
 
   u = interp.RectBivariateSpline(x[:,0], y[0,:], dx)
   v = interp.RectBivariateSpline(x[:,0], y[0,:], dy)
@@ -179,10 +182,11 @@ def speed_continuos(x, y, heading, weather, boat):
   twa = abs(heading - np.degrees(twh) )
   if twa > 180: 
     twa = abs(360-twa)
+  assert twa < 180
 
   return boat(tws, twa), twa, tws, np.degrees(twh)
 
-def speed( x, y, heading, weather, boat):
+def _speed(x, y, heading, weather, boat):
   """ Calculates the boat speed at a given time, 
       given the complete weather data (predicted at a specific time, for 240h in the future), polardiagram and heading
       boat takes an array! 
@@ -194,16 +198,24 @@ def speed( x, y, heading, weather, boat):
       does it in a discrete fashion, rounding tws and twh, and searching for the corresponding boatspeed 
       in the discrete boat-array
   """
-  u = weather['u'](x, y)[0][0] # still broken !!!!!!
+  u = weather['u'](x, y)[0][0] # still broken !!!!!! - really? 
   v = weather['v'](x, y)[0][0]
 
   tws = int(np.sqrt(u**2+v**2))
   twh = int(-PI/2-np.arctan2(v,u))
   twa = abs(heading - np.degrees(twh) )
-  if twa > 180: 
-    twa = abs(360-twa)
+  tws, twa = int(np.floor(tws)), int(np.floor(twa))
+  if twa > 360: 
+    twa = abs(740-twa) 
+  if twa > 179: 
+    twa = abs(359-twa)
+    print('twa', twa, heading, np.degrees(twh), tws )
+  assert twa <= 179
 
-  return boat[np.where((boat[0] == tws) & (boat[1] == twa) )], twa, tws, np.degrees(twh) 
+  
+  speedo = boat[twa, np.abs(boat[twa]-tws).argmin()][0]
+
+  return speedo, twa, tws, np.degrees(twh) 
   # check this for correct tws/twa mapping to boat-array! 
 
 def update_pos( x, y, heading, speed):
@@ -241,6 +253,7 @@ class SailingrouteEnv(gym.Env):
 
     self.threshold = 0.01 # maximum distance to target to end the episode
     self.reward_range = (-1, 1)
+    self.count = 0
 
     # action_space = None
     # observation_space = None
@@ -248,20 +261,29 @@ class SailingrouteEnv(gym.Env):
   def step(self, action):
     
     info = None
+    _dist = self.state['position'][0] - self.state['position'][1]
+    # start - goal
+    distance = np.sqrt(np.square(_dist[0]) + np.square(_dist[1])) 
 
-    if abs(self.state['position'][0] - self.state['position'][1]) <= self.threshold: 
-      # start - goal
-      return self.state, 1, True, None
+    if distance <= self.threshold: 
+      return self.state, 2, True, {'goal': 'reached'}
+    if self.state['position'][0][0] > self.size or self.state['position'][0][1] > self.size: 
+      return self.state, -2, True, {'goal': 'missed'}
 
     speed = self.speed(self.state['position'][0][0], self.state['position'][0][1], 
-                       self.state['wind'], self.boat, 
+                       self._state['wind'], self.boat, 
                        action)
 
     # calculate additional reward
     self.state['position'][0] =   update_pos(self.state['position'][0][0], self.state['position'][0][1], 
                                            action, speed)
-    print(self.state)
+    # print(self.state)
+    reward = -0.01
+    done = False
+    info = {'some': 'thing'}
 
+    print('made step', self.count)
+    self.count +=1
     return self.state, reward, done, info 
     # return observation, reward, done, info
 
@@ -277,13 +299,13 @@ class SailingrouteEnv(gym.Env):
     self.mesh_r, self.boat_r = boat_array_reduction(**dic) #, self.boat)
 
     windfield = generate_wind_field(n_steps=self.resolution, maximum=self.size)
-    self.state = {'wind' : np.array([windfield['u'], windfield['v']]),
-                  'position' : np.array([generate_random_point(self.size),generate_random_point(self.size)]), 
+    self._state = {'wind' : windfield}
+    self.state = {'wind' : np.array([windfield['dx'], windfield['dy']]),
+                  'position' : np.array([generate_random_point(self.size, pos=True),generate_random_point(self.size, pos=True)]), 
                   # 'pos_goal' : generate_random_point(self.size), 
                   # 'heading_last' : 0, 
                   'boat' : self.boat_r                  
                   }
-
     self.boat_max_speed = np.max(self.boat) # needs to be updated in case of function and continuity
 
     return self.state
@@ -300,12 +322,13 @@ class SailingrouteEnv(gym.Env):
       # if turn_angle = 0, no speed penalty is applied
       # speed = bf.speed()
       # speed -= speed*turn_angle/180
-    speed = speed(x, y, heading, weather, boat)
+    speed = _speed(x, y, heading, weather, boat)
     # turn_angle = abs(heading - heading_last) # to be corrected
     # if turn_angle > 180: 
     #   turn_angle = abs(360-turn_angle)
     # speed -= speed*abs(turn_angle)/180*0.5
-    return speed/self.timestep
+    # print(speed[0].shape)
+    return speed[0]/self.timestep
 
 
 class SailingrouteExtraHardEnv(SailingrouteEnv): 
