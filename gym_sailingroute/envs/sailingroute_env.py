@@ -148,8 +148,8 @@ def generate_wind_field( maximum = 100, n_steps=10, plotting_scale = 5):
     for j in range(twh.shape[1]): 
       twh[i,j] += 15
 
-  dx = tws*np.cos(twh)*1e2
-  dy = tws*np.sin(twh)*1e2
+  dx = tws*np.cos(twh)*1.4e2
+  dy = tws*np.sin(twh)*1.4e2
 
   u = interp.RectBivariateSpline(x[:,0], y[0,:], dx)
   v = interp.RectBivariateSpline(x[:,0], y[0,:], dy)
@@ -209,12 +209,10 @@ def _speed(x, y, heading, weather, boat):
     twa = abs(740-twa) 
   if twa > 179: 
     twa = abs(359-twa)
-    print('twa', twa, heading, np.degrees(twh), tws )
+    
   assert twa <= 179
-
-  
   speedo = boat[twa, np.abs(boat[twa]-tws).argmin()][0]
-
+  print('twa', twa, heading, np.degrees(twh), tws, speedo )
   return speedo, twa, tws, np.degrees(twh) 
   # check this for correct tws/twa mapping to boat-array! 
 
@@ -251,7 +249,7 @@ class SailingrouteEnv(gym.Env):
     self.action_space = spaces.Discrete(360)
     self.reset()
 
-    self.threshold = 0.01 # maximum distance to target to end the episode
+    self.threshold = 5 # maximum distance to target to end the episode
     self.reward_range = (-1, 1)
     self.count = 0
 
