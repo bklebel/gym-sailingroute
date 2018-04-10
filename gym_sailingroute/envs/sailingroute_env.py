@@ -204,7 +204,7 @@ def _speed(x, y, heading, weather, boat):
   tws = int(np.sqrt(u**2+v**2))
   twh = int(-PI/2-np.arctan2(v,u))
   twa = abs(heading - np.degrees(twh) )
-  tws, twa = int(np.floor(tws)), int(np.floor(twa))
+  tws, twa = int(np.ceil(tws)), int(np.ceil(twa))
   if twa > 360: 
     twa = abs(740-twa) 
   if twa > 179: 
