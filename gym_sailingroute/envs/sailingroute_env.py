@@ -8,6 +8,11 @@ import time
 import sys
 import scipy
 
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt
+from matplotlib import cm
+import matplotlib.pyplot as plt
+
 
 PI = 3.14159265358979323846264338327
 
@@ -119,7 +124,7 @@ def generate_obstacle_function(maximum, x, y):
                            + (y - y_obstacle)**2 / a_obstacle))
   return p
 
-def generate_wind_field( maximum = 100, n_steps=10, plotting_scale = 5):
+def generate_wind_field( maximum = 100, n_steps=10, plotting_scale = 1):
   '''generates a random wind field. first, random "obstacles" are introduced, 
      and a vector field is generated between them. 
      Then, every single wind component is turned by 15 degrees 
@@ -205,11 +210,9 @@ def _speed(x, y, heading, weather, boat):
   twh = int(-PI/2-np.arctan2(v,u))
   twa = abs(heading - np.degrees(twh) )
   tws, twa = int(np.ceil(tws)), int(np.ceil(twa))
-  if twa > 360: 
-    twa = abs(740-twa) 
-  if twa > 179: 
-    twa = abs(359-twa)
-    
+  twa = abs(740-twa) if twa > 360 else twa 
+  twa = abs(359-twa) if twa > 179 else twa
+
   assert twa <= 179
   speedo = boat[twa, np.abs(boat[twa]-tws).argmin()][0]
   # print('twa',  np.degrees(twh), tws, twa, heading, speedo, x, y )
@@ -220,12 +223,6 @@ def update_pos( x, y, heading, speed):
   x += speed*np.cos(deghead2rad(heading))
   y += speed*np.sin(deghead2rad(heading))
   return [x,y]
-
-
-# boatf = boatfunc()
-
-
-
 
 
 
@@ -253,80 +250,140 @@ class SailingrouteEnv(gym.Env):
     self.reward_range = (-1, 1)
     self.count = 0
 
-    # action_space = None
-    # observation_space = None
+    self.course_traversed = []
+    self.render_first = True
+    self.ax = None
+    self._state = {'done': False}
 
   def step(self, action):
-    
-    info = None
     _dist = self.state['position'][0] - self.state['position'][1]
     # start - goal
-    distance = np.sqrt(np.square(_dist[0]) + np.square(_dist[1])) 
 
-    if distance <= self.threshold: 
-      return self.state, 2, True, {'goal': 'reached'}
-    if abs(self.state['position'][0][0]) > self.size or abs(self.state['position'][0][1]) > self.size: 
-      return self.state, -2, True, {'goal': 'missed'}
+    if np.sqrt(np.square(_dist[0]) + np.square(_dist[1]))  <= self.threshold: 
+      self._state['done'] = True
+      self.course_traversed = []
+      return self.state, 3, True, {'goal': 'reached'}
+    if self.state['position'][0][0] > self.size or self.state['position'][0][1] > self.size or \
+       self.state['position'][0][0] < 0 or self.state['position'][0][1] < 0: 
+      self._state['done'] = True
+      self.course_traversed = []
+      return self.state, -3, True, {'goal': 'missed'}
 
     speed = self.speed(self.state['position'][0][0], self.state['position'][0][1], 
                        self._state['wind'], self.boat, 
                        action)
-
+    # print(speed)
     # calculate additional reward
     self.state['position'][0] =   update_pos(self.state['position'][0][0], self.state['position'][0][1], 
                                            action, speed)
-    # print(self.state)
-    reward = -0.01
-    done = False
-    info = {'some': 'thing'}
-
     # print('made step', self.count)
     self.count +=1
-    return self.state, reward, done, info 
+    return self.state, -0.01, False, {'some': 'thing'}
     # return observation, reward, done, info
 
   def reset(self):
-    # TODO: 
-      # calculate goal heading for a VMG
     self.mesh, _, self.boat = generate_boat_complete()
     dic = dict(mesh=self.mesh, boat=self.boat, test=0)
-    # print(type(dic), len(dic))
-    # print(self.mesh)
-    # print(dic['mesh'])
-    # print([[type(x), x.shape] for x in self.mesh], type(self.boat))
     self.mesh_r, self.boat_r = boat_array_reduction(**dic) #, self.boat)
 
     windfield = generate_wind_field(n_steps=self.resolution, maximum=self.size)
-    self._state = {'wind' : windfield}
+    self._state = {'wind' : windfield, 'done': False}
     self.state = {'wind' : np.array([windfield['dx'], windfield['dy']]),
                   'position' : np.array([generate_random_point(self.size, pos=True),generate_random_point(self.size, pos=True)]), 
-                  # 'pos_goal' : generate_random_point(self.size), 
-                  # 'heading_last' : 0, 
                   'boat' : self.boat_r                  
                   }
     self.boat_max_speed = np.max(self.boat) # needs to be updated in case of function and continuity
-
     return self.state
-    
 
-  def render(self, mode='human', close=False):
-    pass
   def seed(s):
     np.random.seed(s)
 
   def speed(self, x, y, weather, boat, heading):
+    speed = _speed(x, y, heading, weather, boat)
+    return speed[0]/self.timestep
     # TODO: reduce speed after turning corresponding to turn_angle/180
       # if turn_angle = 180, next speed step will be half as fast as without penalty,
       # if turn_angle = 0, no speed penalty is applied
       # speed = bf.speed()
       # speed -= speed*turn_angle/180
-    speed = _speed(x, y, heading, weather, boat)
     # turn_angle = abs(heading - heading_last) # to be corrected
     # if turn_angle > 180: 
     #   turn_angle = abs(360-turn_angle)
     # speed -= speed*abs(turn_angle)/180*0.5
     # print(speed[0].shape)
-    return speed[0]/self.timestep
+
+  def function():
+    pass
+
+  def _plotting(self, x, y, dx, dy, tws, skip, x_curr, y_curr, goal, first, axi, done, **kwargs):
+    if done: plt.close()
+    if first or done: 
+      fig, ax = plt.subplots()
+      ax.quiver(x[skip], y[skip], dx[skip], dy[skip], tws[skip])
+      ax.set(aspect=1, title='Course')
+      plt.xlim(0, 200)
+      plt.ylim(0, 200)
+      goal = np.array([0,0])
+      x_curr, y_curr = 0, 0
+    else: 
+      ax = axi
+    ax.plot(x_curr, y_curr, 'b^--')
+    ax.plot(goal[0], goal[1], 'r^')
+    plt.draw()
+    plt.pause(0.01)
+    return ax
+
+  def render(self, mode='human', close=False):
+    self.render_first = True if self._state['done'] else self.render_first
+    goal = self.state['position'][1]
+    self.course_traversed.append([self.state['position'][0,0][0], self.state['position'][0,1][0]])
+    # print(self.course_traversed[-1], goal)
+    # print(self.ax, self.render_first, self._state['done'])
+    self.ax = self._plotting(x_curr = np.array(self.course_traversed)[:,0], 
+              y_curr = np.array(self.course_traversed)[:,1], 
+              goal = goal, first = self.render_first, done = self._state['done'], 
+              axi = self.ax, 
+              **self._state['wind'])
+    self.render_first = False
+
+  def _plot_update(self):
+    pass
+
+
+  def _plot_boat(X, Y, boat):
+    fig = plt.figure()
+    ax = fig.gca(projection="3d")
+    print(X.shape, Y.shape, boat.shape)
+    # surf = ax.plot_surface(X, Y, boat, cmap = cm.coolwarm)
+    surf = ax.plot_wireframe(X, Y, boat)
+    # fig.colorbar(surf)
+    plt.savefig('test.png')
+    plt.show()
+    # plt.draw()
+    # plt.pause(0.01)
+
+  def _plot_boat_polar(boat_func=None, boat_array=None, boat_fun=False, boat_arr = False):
+    fig = plt.figure()
+    ax = plt.subplot(111, polar=True)
+    ax.set_theta_zero_location("N")
+
+    if boat_fun: 
+      boat = boat_func
+      TWA, TWS, boating = boat_to_array(boat)
+      # print(TWA.shape, TWS.shape, boating.shape, np.transpose(boating).shape)
+      for i in range(len(TWS)): 
+        # print(TWA,np.transpose(boating)[i] )
+        ax.plot(np.radians(TWA), np.transpose(boating)[i]) 
+      plt.savefig('polar_function.png')
+      plt.show()
+    if boat_arr: 
+      boat = boat_array
+      TWA, TWS, boating = boat_to_array(boat_func)
+      for i in range(boat.shape[1]): 
+        # print(TWA,np.transpose(boating)[i] )
+        ax.plot(np.radians(TWA), np.transpose(boat)[i]) 
+      plt.savefig('polar_array.png')
+      plt.show()  
 
 
 class SailingrouteExtraHardEnv(SailingrouteEnv): 
@@ -334,7 +391,7 @@ class SailingrouteExtraHardEnv(SailingrouteEnv):
     super().__init__(size)
 
   def speed(x, y, heading, weather, boat):
-    return speed(x, y, heading, weather, boat)*0.6
+    return _speed(x, y, heading, weather, boat)[0]/self.timestep*0.6
 
 
 
