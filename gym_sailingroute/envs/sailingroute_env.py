@@ -8,6 +8,8 @@ import time
 import sys
 import scipy
 
+import os
+
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 from matplotlib import cm
@@ -254,6 +256,7 @@ class SailingrouteEnv(gym.Env):
     self.render_first = True
     self.ax = None
     self._state = {'done': False}
+    self.printing = True
 
   def step(self, action):
     _dist = self.state['position'][0] - self.state['position'][1]
@@ -329,6 +332,7 @@ class SailingrouteEnv(gym.Env):
       ax = axi
     ax.plot(x_curr, y_curr, 'b^--')
     ax.plot(goal[0], goal[1], 'r^')
+    if self.printing: plt.savefig('pictures/pic_{}.png'.format(self.count))
     plt.draw()
     plt.pause(0.01)
     return ax
