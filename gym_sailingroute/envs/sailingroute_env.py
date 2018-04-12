@@ -298,6 +298,9 @@ class SailingrouteEnv(gym.Env):
     self.boat_max_speed = np.max(self.boat) # needs to be updated in case of function and continuity
     return self.state
 
+  def VMG(pos_curr, pos_goal, action, speed):
+    pass
+
   def seed(s):
     np.random.seed(s)
 
