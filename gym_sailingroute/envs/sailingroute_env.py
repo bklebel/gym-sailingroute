@@ -115,7 +115,7 @@ def generate_random_point(maximum, pos=False):
   x = np.random.rand()*(maximum-maximum/10) # *random[0]
   y = np.random.rand()*(maximum-maximum/10) # *random[1]
   if pos: 
-      return np.array([[x], [y]])
+      return np.array([[np.ceil(x)], [np.ceil(y)]])
   return [x, y]
 
 def generate_obstacle_function(maximum, x, y):
@@ -193,7 +193,7 @@ def speed_continuos(x, y, heading, weather, boat):
 
   return boat(tws, twa), twa, tws, np.degrees(twh)
 
-def _speed(x, y, heading, weather, boat):
+def _speed_slow(x, y, heading, weather, boat):
   """ Calculates the boat speed at a given time, 
       given the complete weather data (predicted at a specific time, for 240h in the future), polardiagram and heading
       boat takes an array! 
@@ -217,16 +217,27 @@ def _speed(x, y, heading, weather, boat):
 
   assert twa <= 179
   speedo = boat[twa, np.abs(boat[twa]-tws).argmin()][0]
-  # print('twa',  np.degrees(twh), tws, twa, heading, speedo, x, y )
+  
   return speedo, twa, tws, np.degrees(twh) 
   # check this for correct tws/twa mapping to boat-array! 
+  # print('twa',  np.degrees(twh), tws, twa, heading, speedo, x, y )
 
-def update_pos( x, y, heading, speed):
-  x += speed*np.cos(deghead2rad(heading))
-  y += speed*np.sin(deghead2rad(heading))
+def _speed(x, y, heading, weather, boat):
+  u = weather['u'](x, y)[0][0]  ;  v = weather['v'](x, y)[0][0]
+  tws = int(np.sqrt(u**2+v**2))            ;  twh = int(-PI/2-np.arctan2(v,u))
+  twa = abs(heading - np.degrees(twh) )    ;  tws, twa = int(np.ceil(tws)), int(np.ceil(twa))
+  twa = abs(740-twa) if twa > 360 else twa ;  twa = abs(359-twa) if twa > 179 else twa
+  assert twa <= 179
+  speedo = boat[twa, np.abs(boat[twa]-tws).argmin()][0]
+  return speedo, twa, tws, np.degrees(twh) 
+
+def update_pos_slow( x, y, heading, speed):
+  x += np.ceil(speed*np.cos(deghead2rad(heading)))
+  y += np.ceil(speed*np.sin(deghead2rad(heading)))
   return [x,y]
 
-
+def update_pos( x, y, heading, speed):
+  return [x+np.ceil(speed*np.cos(deghead2rad(heading))), y+np.ceil(speed*np.sin(deghead2rad(heading)))]
 
 class SailingrouteEnv(gym.Env):
   metadata = {'render.modes': ['human']}
@@ -275,12 +286,9 @@ class SailingrouteEnv(gym.Env):
     speed = self.speed(self.state['position'][0][0], self.state['position'][0][1], 
                        self._state['wind'], self.boat, 
                        action)
-    # print(speed)
     # calculate additional reward
     self.state['position'][0] =   update_pos(self.state['position'][0][0], self.state['position'][0][1], 
                                            action, speed)
-    # print('made step', self.count)
-    self.count +=1
     return self.state, -0.01, False, {'some': 'thing'}
     # return observation, reward, done, info
 
@@ -297,9 +305,6 @@ class SailingrouteEnv(gym.Env):
                   }
     self.boat_max_speed = np.max(self.boat) # needs to be updated in case of function and continuity
     return self.state
-
-  def VMG(pos_curr, pos_goal, action, speed):
-    pass
 
   def seed(s):
     np.random.seed(s)
@@ -318,12 +323,12 @@ class SailingrouteEnv(gym.Env):
     # speed -= speed*abs(turn_angle)/180*0.5
     # print(speed[0].shape)
 
-  def function():
+  def VMG():
     pass
 
   def _plotting(self, x, y, dx, dy, tws, skip, x_curr, y_curr, goal, first, axi, done, **kwargs):
-    if done: plt.close()
     if first or done: 
+      if plt: plt.close()
       fig, ax = plt.subplots()
       ax.quiver(x[skip], y[skip], dx[skip], dy[skip], tws[skip])
       ax.set(aspect=1, title='Course')
@@ -335,7 +340,7 @@ class SailingrouteEnv(gym.Env):
       ax = axi
     ax.plot(x_curr, y_curr, 'b^--')
     ax.plot(goal[0], goal[1], 'r^')
-    if self.printing: plt.savefig('pictures/pic_{}.png'.format(self.count))
+    # if self.printing: plt.savefig('pictures/pic_{}.png'.format(self.count))
     plt.draw()
     plt.pause(0.01)
     return ax
