@@ -3,12 +3,14 @@ from gym import error, spaces, utils
 from gym.utils import seeding
 
 import numpy as np
+import math
 import scipy.interpolate as interp
 import time
 import sys
 import scipy
 
 import os
+import datetime
 
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
@@ -231,23 +233,32 @@ def _speed(x, y, heading, weather, boat):
   speedo = boat[twa, np.abs(boat[twa]-tws).argmin()][0]
   return speedo, twa, tws, np.degrees(twh) 
 
+
+def goal_heading(start, goal):
+  vector = goal-start    ;   norm = math.sqrt(vector[0]**2+vector[1]**2)
+  return math.acos(vector[1]/norm), norm
+
+def VMG(goal_heading, heading, speed):
+  return speed*math.cos(np.radians(abs(goal_heading-heading)))
+
+
 def update_pos_slow( x, y, heading, speed):
-  x += np.ceil(speed*np.cos(deghead2rad(heading)))
-  y += np.ceil(speed*np.sin(deghead2rad(heading)))
+  x += np.ceil(speed*math.cos(deghead2rad(heading)))
+  y += np.ceil(speed*math.sin(deghead2rad(heading)))
   return [x,y]
 
 def update_pos( x, y, heading, speed):
-  return [x+np.ceil(speed*np.cos(deghead2rad(heading))), y+np.ceil(speed*np.sin(deghead2rad(heading)))]
+  return [x+np.ceil(speed*math.cos(deghead2rad(heading))), y+np.ceil(speed*math.sin(deghead2rad(heading)))]
 
 class SailingrouteEnv(gym.Env):
   metadata = {'render.modes': ['human']}
 
-  def __init__(self, size=200, timestep=1, resolution=20):
+  def __init__(self, size=200, timestep=1, resolution=200):
     self.size = size # this determines the physical size of the grid
     self.timestep = timestep # this determines "how fast time evolves" 
                              # 1 corresponds to 1h/step, 2 corresponds to 0.5h/step and so on
     self.resolution = resolution # this determines the resolution of the grid - which corresponds to the wind observation! 
-    assert self.resolution == 20 # DO NOT CHANGE THIS! - 400 "pixel" for the NN (20x20)
+    # assert self.resolution == 20 # DO NOT CHANGE THIS! - 400 "pixel" for the NN (20x20)
 
     self.observation_space = spaces.Dict({"position": spaces.Box(low=0, high=self.size, shape=(2,2)), 
                                           "wind": spaces.Box(low=0, high=40, shape=(self.size,self.size)), # to be corrected for dict and stuff
@@ -263,33 +274,43 @@ class SailingrouteEnv(gym.Env):
     self.reward_range = (-1, 1)
     self.count = 0
 
-    self.course_traversed = []
+    
     self.render_first = True
     self.ax = None
-    self._state = {'done': False}
+    
     self.printing = True
 
   def step(self, action):
-    _dist = self.state['position'][0] - self.state['position'][1]
+    # _dist = self.state['position'][0] - self.state['position'][1]
     # start - goal
+    step_punishment = 0.01 
+    # negative reward added at every non-successful step
+    death_punishment = 1
+    goal_reward = 1
 
-    if np.sqrt(np.square(_dist[0]) + np.square(_dist[1]))  <= self.threshold: 
+
+    goal_head, goal_norm = goal_heading(self.state['position'][1], self.state['position'][0])
+    # if np.sqrt(np.square(_dist[0]) + np.square(_dist[1]))  <= self.threshold: 
+    if goal_norm <= self.threshold: 
       self._state['done'] = True
       self.course_traversed = []
-      return self.state, 3, True, {'goal': 'reached'}
+      return self.state, goal_reward, True, {'goal': 'reached'}
     if self.state['position'][0][0] > self.size or self.state['position'][0][1] > self.size or \
        self.state['position'][0][0] < 0 or self.state['position'][0][1] < 0: 
       self._state['done'] = True
       self.course_traversed = []
-      return self.state, -3, True, {'goal': 'missed'}
+      return self.state, -death_punishment, True, {'goal': 'missed'}
 
     speed = self.speed(self.state['position'][0][0], self.state['position'][0][1], 
                        self._state['wind'], self.boat, 
                        action)
+    vmg_reward = VMG(goal_head, action, speed)/self.boat_max_speed*(step_punishment*10/2)
+    # the norm was here chosen to be the boats maximum speed at any given wind, and any given wind angle. 
+    # this could be changed to the maximum vmg possible at the current position - more calculations! 
     # calculate additional reward
     self.state['position'][0] =   update_pos(self.state['position'][0][0], self.state['position'][0][1], 
                                            action, speed)
-    return self.state, -0.01, False, {'some': 'thing'}
+    return self.state, -step_punishment+vmg_reward, False, {'some': 'thing'}
     # return observation, reward, done, info
 
   def reset(self):
@@ -304,6 +325,9 @@ class SailingrouteEnv(gym.Env):
                   'boat' : self.boat_r                  
                   }
     self.boat_max_speed = np.max(self.boat) # needs to be updated in case of function and continuity
+    self.render_first = True
+    self.course_traversed = []
+    # self._state.update({'done': False})
     return self.state
 
   def seed(s):
@@ -323,10 +347,8 @@ class SailingrouteEnv(gym.Env):
     # speed -= speed*abs(turn_angle)/180*0.5
     # print(speed[0].shape)
 
-  def VMG():
-    pass
-
   def _plotting(self, x, y, dx, dy, tws, skip, x_curr, y_curr, goal, first, axi, done, **kwargs):
+    now = datetime.datetime.now()
     if first or done: 
       if plt: plt.close()
       fig, ax = plt.subplots()
@@ -340,7 +362,7 @@ class SailingrouteEnv(gym.Env):
       ax = axi
     ax.plot(x_curr, y_curr, 'b^--')
     ax.plot(goal[0], goal[1], 'r^')
-    # if self.printing: plt.savefig('pictures/pic_{}.png'.format(self.count))
+    if self.printing: plt.savefig('pictures/pic_{}.png'.format(now.isoformat()))
     plt.draw()
     plt.pause(0.01)
     return ax
