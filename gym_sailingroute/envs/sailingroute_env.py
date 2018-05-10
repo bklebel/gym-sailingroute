@@ -86,7 +86,6 @@ def boat_array_reduction(mesh, boat,**kwargs):
   # print('reduction', boat_new.shape, mesh_new[0].shape, mesh_new[1].shape)
   return mesh_new, boat_new
 
-
 def boat_to_array(boat, step_speed = 2, step_angle = 10, max_speed = 40, max_angle = 180, forplot=False):
   """returns a regular spaced array for boatspeed at TWS and TWA, 
      given the function boat(TWS, TWA) for a specific boat. 
@@ -103,7 +102,6 @@ def boat_to_array(boat, step_speed = 2, step_angle = 10, max_speed = 40, max_ang
       boat_array[j,i] = boat(TWS[i], TWA[j])
   if forplot: return boat_array
   return (TWA, TWS, boat_array)
-
 
 def generate_random_sign(length):
   r = []
@@ -239,6 +237,7 @@ def goal_heading(start, goal):
   return math.acos(vector[1]/norm), norm
 
 def VMG(goal_heading, heading, speed):
+  
   return speed*math.cos(np.radians(abs(goal_heading-heading)))
 
 
@@ -253,12 +252,12 @@ def update_pos( x, y, heading, speed):
 class SailingrouteEnv(gym.Env):
   metadata = {'render.modes': ['human']}
 
-  def __init__(self, size=200, timestep=1, resolution=200):
+  def __init__(self, size=200, timestep=1, resolution=20):
     self.size = size # this determines the physical size of the grid
     self.timestep = timestep # this determines "how fast time evolves" 
                              # 1 corresponds to 1h/step, 2 corresponds to 0.5h/step and so on
     self.resolution = resolution # this determines the resolution of the grid - which corresponds to the wind observation! 
-    # assert self.resolution == 20 # DO NOT CHANGE THIS! - 400 "pixel" for the NN (20x20)
+    assert self.resolution == 20 # DO NOT CHANGE THIS! - 400 "pixel" for the NN (20x20)
 
     self.observation_space = spaces.Dict({"position": spaces.Box(low=0, high=self.size, shape=(2,2)), 
                                           "wind": spaces.Box(low=0, high=40, shape=(self.size,self.size)), # to be corrected for dict and stuff
@@ -285,8 +284,8 @@ class SailingrouteEnv(gym.Env):
     # start - goal
     step_punishment = 0.01 
     # negative reward added at every non-successful step
-    death_punishment = 1
-    goal_reward = 1
+    death_punishment = 0.5
+    goal_reward = 5
 
 
     goal_head, goal_norm = goal_heading(self.state['position'][1], self.state['position'][0])
@@ -304,7 +303,7 @@ class SailingrouteEnv(gym.Env):
     speed = self.speed(self.state['position'][0][0], self.state['position'][0][1], 
                        self._state['wind'], self.boat, 
                        action)
-    vmg_reward = VMG(goal_head, action, speed)/self.boat_max_speed*(step_punishment*10/2)
+    vmg_reward = VMG(goal_head, action, speed)/self.boat_max_speed*(step_punishment*3)
     # the norm was here chosen to be the boats maximum speed at any given wind, and any given wind angle. 
     # this could be changed to the maximum vmg possible at the current position - more calculations! 
     # calculate additional reward
