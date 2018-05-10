@@ -29,6 +29,41 @@ PI = 3.14159265358979323846264338327
 #     # super(ClassName, self).__init__()
 #     # self.arg = arg  
 #     pass
+def load_boat(file='bavaria_match.dat'): 
+  """ loads a polar diagram with y axis being TWA, x axis being TWS
+    returns a scipy function object, with following usage: 
+
+    boat_speed = f(TWS, TWA)
+
+    A TWA > 180 needs to be changed to 360-TWA. 
+
+    the file needs to be like this (default bavaria match): 
+    0     6 8  10   12  14  16    20  
+    52     5.57 6.65 7.15 7.43 7.61 7.72 7.80 
+    60     5.97 6.93 7.45 7.73 7.87 7.95 8.03 
+    75     6.34 7.15 7.71 8.01 8.17 8.27 8.41 
+    90     6.36 7.31 7.88 8.08 8.25 8.51 8.79 
+    110    6.23 7.17 7.80 8.16 8.52 8.77 9.10 
+    120    5.84 6.93 7.60 8.03 8.41 8.85 9.44 
+    135    5.03 6.30 7.10 7.69 8.07 8.44 9.33 
+    150    4.19 5.32 6.35 7.07 7.63 8.02 8.76 
+
+  """
+  bavaria = np.loadtxt(file)
+  boat_data = bavaria[1:, 1:]
+  x = bavaria[0]                 # tws
+  y = np.transpose(bavaria)[0]   # twa
+  a = np.zeros((1,boat_data.shape[1]))    # a, b, first and second are to interpolate to zero
+  b = np.zeros((boat_data.shape[0]+1, 1))
+  first = np.concatenate((a, boat_data))
+  second = np.concatenate((b, first), axis=1)
+  # print(second.shape, x.shape, y.shape)
+  # return interp.interp2d(x, y, second, kind='cubic')
+  mesh = np.meshgrid(x, y)
+  bootf = interp.Rbf(mesh[0], mesh[1], second, function='cubic')
+  return mesh, bootf, second
+
+
 def cardioid_r(a, phi, factor, speed_max = 8):
   
   #print(factor)
@@ -164,7 +199,7 @@ def generate_wind_field( maximum = 100, n_steps=10, plotting_scale = 1):
   # print(np.max(dx))
   skip = (slice(None, None, plotting_scale), slice(None, None, plotting_scale))
 
-  return dict(u = u, dx=dx, v = v, dy=dy, x=x, y=y, tws=tws, skip=skip)
+  return dict(u = u, dx=dx, v = v, dy=dy, x=x, y=y, tws=tws, twh=twh, skip=skip)
 
 def deghead2rad(heading):
   '''sailing angle to math angle conversion
@@ -237,8 +272,9 @@ def goal_heading(start, goal):
   return math.acos(vector[1]/norm), norm
 
 def VMG(goal_heading, heading, speed):
-  
-  return speed*math.cos(np.radians(abs(goal_heading-heading)))
+  vmg = speed*math.cos(np.radians(abs(goal_heading-heading)))
+  # assert vmg > 0
+  return vmg
 
 
 def update_pos_slow( x, y, heading, speed):
@@ -303,7 +339,7 @@ class SailingrouteEnv(gym.Env):
     speed = self.speed(self.state['position'][0][0], self.state['position'][0][1], 
                        self._state['wind'], self.boat, 
                        action)
-    vmg_reward = VMG(goal_head, action, speed)/self.boat_max_speed*(step_punishment*3)
+    vmg_reward = VMG(goal_head, action, speed)/self.boat_max_speed*(step_punishment*4)-step_punishment*0.7
     # the norm was here chosen to be the boats maximum speed at any given wind, and any given wind angle. 
     # this could be changed to the maximum vmg possible at the current position - more calculations! 
     # calculate additional reward
@@ -314,12 +350,13 @@ class SailingrouteEnv(gym.Env):
 
   def reset(self):
     self.mesh, _, self.boat = generate_boat_complete()
+    # self.mesh, _, self.boat = load_boat()
     dic = dict(mesh=self.mesh, boat=self.boat, test=0)
     self.mesh_r, self.boat_r = boat_array_reduction(**dic) #, self.boat)
 
     windfield = generate_wind_field(n_steps=self.resolution, maximum=self.size)
     self._state = {'wind' : windfield, 'done': False}
-    self.state = {'wind' : np.array([windfield['dx'], windfield['dy']]),
+    self.state = {'wind' : np.array([windfield['twh'], windfield['tws']]),
                   'position' : np.array([generate_random_point(self.size, pos=True),generate_random_point(self.size, pos=True)]), 
                   'boat' : self.boat_r                  
                   }
