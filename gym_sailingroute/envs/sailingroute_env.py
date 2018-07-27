@@ -479,9 +479,9 @@ class SailingrouteEnv_simplest(gym.Env):
                                           # "position": spaces.Box(low=0, high=self.size, shape=(2,2)), 
                                           # "wind": spaces.Box(low=0, high=40, shape=(self.size,self.size)), # to be corrected for dict and stuff
                                           # "pos_goal":  spaces.Box(low=0, high=self.size, shape=(2,)), 
-                                          #"heading_last" : spaces.Discrete() # finish up
+                                          # "heading_last" : spaces.Discrete() # finish up
                                           # "boat": spaces.Box(low=-40, high=40, shape=(18,20,1))                                          
-                                          #"depth": spaces.Box(low=0, high=30, shape=(self.size, self.size))
+                                          # "depth": spaces.Box(low=0, high=30, shape=(self.size, self.size))
                                           }) 
     self.resolution_action = 10
     assert type(self.resolution_action) == 'int'
@@ -532,8 +532,8 @@ class SailingrouteEnv_simplest(gym.Env):
                                            action, speed)
     # update model position
     self.state = {'position' : np.zeros(self.size, self.size)}
-    self.state['position'][self._state['position'][1][0],self._state['position'][1][1]] = 1
-    self.state['position'][self._state['position'][0][0],self._state['position'][0][1]] = 2
+    self.state['position'][self._state['position'][1][0],self._state['position'][1][1]] = 1 # start
+    self.state['position'][self._state['position'][0][0],self._state['position'][0][1]] = 2 # goal
     
     return self.state, -step_punishment+vmg_reward, False, {'some': 'thing'}
     # return observation, reward, done, info
