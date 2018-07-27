@@ -318,9 +318,10 @@ class SailingrouteEnv(gym.Env):
   def step(self, action):
     # _dist = self.state['position'][0] - self.state['position'][1]
     # start - goal
-    step_punishment = 0.01 
+    step_punishment = 0.01
     # negative reward added at every non-successful step
     death_punishment = 0.5
+    stuck_punishment = 0.4
     goal_reward = 5
 
 
@@ -339,12 +340,17 @@ class SailingrouteEnv(gym.Env):
     speed = self.speed(self.state['position'][0][0], self.state['position'][0][1], 
                        self._state['wind'], self.boat, 
                        action)
+    if speed <= 1: 
+      self._state['zero_step_count'] += 1
+      if self._state['zero_step_count'] > 5: 
+        return self.state, -stuck_punishment, True, {'some': 'thing'}
     vmg_reward = VMG(goal_head, action, speed)/self.boat_max_speed*(step_punishment*4)-step_punishment*0.7
     # the norm was here chosen to be the boats maximum speed at any given wind, and any given wind angle. 
     # this could be changed to the maximum vmg possible at the current position - more calculations! 
     # calculate additional reward
     self.state['position'][0] =   update_pos(self.state['position'][0][0], self.state['position'][0][1], 
                                            action, speed)
+    self.step_count += 1
     return self.state, -step_punishment+vmg_reward, False, {'some': 'thing'}
     # return observation, reward, done, info
 
@@ -355,7 +361,7 @@ class SailingrouteEnv(gym.Env):
     self.mesh_r, self.boat_r = boat_array_reduction(**dic) #, self.boat)
 
     windfield = generate_wind_field(n_steps=self.resolution, maximum=self.size)
-    self._state = {'wind' : windfield, 'done': False}
+    self._state = {'wind' : windfield, 'done': False, 'zero_step_count': 0}
     self.state = {'wind' : np.array([windfield['twh'], windfield['tws']]),
                   'position' : np.array([generate_random_point(self.size, pos=True),generate_random_point(self.size, pos=True)]), 
                   'boat' : self.boat_r                  
@@ -364,6 +370,7 @@ class SailingrouteEnv(gym.Env):
     self.render_first = True
     self.course_traversed = []
     # self._state.update({'done': False})
+    self.step_count = 0
     return self.state
 
   def seed(s):
