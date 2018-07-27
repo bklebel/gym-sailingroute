@@ -12,4 +12,11 @@ register(
     max_episode_steps=100,
     reward_threshold=25.0,
 ) 
+register(
+	id='sailingroute-simplest-v0', 
+	entry_point='gym_sailingroute.envs:SailingrouteEnv_simplest-v0', 
+    max_episode_steps=100,
+    reward_threshold=25.0,
+) 
+
 

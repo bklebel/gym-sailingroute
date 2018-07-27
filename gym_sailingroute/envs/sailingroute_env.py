@@ -266,7 +266,6 @@ def _speed(x, y, heading, weather, boat):
   speedo = boat[twa, np.abs(boat[twa]-tws).argmin()][0]
   return speedo, twa, tws, np.degrees(twh) 
 
-
 def goal_heading(start, goal):
   vector = goal-start    ;   norm = math.sqrt(vector[0]**2+vector[1]**2)
   return math.acos(vector[1]/norm), norm
@@ -274,8 +273,6 @@ def goal_heading(start, goal):
 def VMG(goal_heading, heading, speed):
   return speed*math.cos(np.radians(abs(goal_heading-heading)))
   
-
-
 def update_pos_slow( x, y, heading, speed):
   x += np.ceil(speed*math.cos(deghead2rad(heading)))
   y += np.ceil(speed*math.sin(deghead2rad(heading)))
@@ -478,7 +475,8 @@ class SailingrouteEnv_simplest(gym.Env):
     self.resolution = resolution # this determines the resolution of the grid - which corresponds to the wind observation! 
     assert self.resolution == 20 # DO NOT CHANGE THIS! - 400 "pixel" for the NN (20x20)
 
-    self.observation_space = spaces.Dict({"position": spaces.Box(low=0, high=self.size, shape=(2,2)), 
+    self.observation_space = spaces.Dict({'position' : spaces.Box(low=-1, high=2, shape=(self.size,self.size))
+                                          # "position": spaces.Box(low=0, high=self.size, shape=(2,2)), 
                                           # "wind": spaces.Box(low=0, high=40, shape=(self.size,self.size)), # to be corrected for dict and stuff
                                           # "pos_goal":  spaces.Box(low=0, high=self.size, shape=(2,)), 
                                           #"heading_last" : spaces.Discrete() # finish up
@@ -511,13 +509,13 @@ class SailingrouteEnv_simplest(gym.Env):
     action *= self.resolution_action 
 
 
-    goal_head, goal_norm = goal_heading(self.state['position'][1], self.state['position'][0])
+    goal_head, goal_norm = goal_heading(self._state['position'][1], self._state['position'][0])
     # if np.sqrt(np.square(_dist[0]) + np.square(_dist[1]))  <= self.threshold: 
     if goal_norm <= self.threshold: 
       self._state['done'] = True
       self.course_traversed = []
       return self.state, goal_reward, True, {'goal': 'reached'}
-    if out_of_box(self.state['position'][0][0], self.state['position'][0][1], self.size): 
+    if out_of_box(self._state['position'][0][0], self._state['position'][0][1], self.size): 
       self._state['done'] = True
       self.course_traversed = []
       return self.state, -death_punishment, True, {'goal': 'missed'}
@@ -525,29 +523,42 @@ class SailingrouteEnv_simplest(gym.Env):
     # speed = self.speed(self.state['position'][0][0], self.state['position'][0][1], 
     #                    self._state['wind'], self.boat, 
     #                    action)
-    speed = 3
+    speed = self.boat_max_speed
     vmg_reward = VMG(goal_head, action, speed)/self.boat_max_speed*(step_punishment*4)-step_punishment*0.7
     # the norm was here chosen to be the boats maximum speed at any given wind, and any given wind angle. 
     # this could be changed to the maximum vmg possible at the current position - more calculations! 
     # calculate additional reward
-    self.state['position'][0] =   update_pos(self.state['position'][0][0], self.state['position'][0][1], 
+    self._state['position'][0] =   update_pos(self._state['position'][0][0], self._state['position'][0][1], 
                                            action, speed)
+    # update model position
+    self.state = {'position' : np.zeros(self.size, self.size)}
+    self.state['position'][self._state['position'][1][0],self._state['position'][1][1]] = 1
+    self.state['position'][self._state['position'][0][0],self._state['position'][0][1]] = 2
+    
     return self.state, -step_punishment+vmg_reward, False, {'some': 'thing'}
     # return observation, reward, done, info
 
   def reset(self):
-    self.mesh, _, self.boat = generate_boat_complete()
+    # self.mesh, _, self.boat = generate_boat_complete()
     # self.mesh, _, self.boat = load_boat()
-    dic = dict(mesh=self.mesh, boat=self.boat, test=0)
-    self.mesh_r, self.boat_r = boat_array_reduction(**dic) #, self.boat)
+    # dic = dict(mesh=self.mesh, boat=self.boat, test=0)
+    # self.mesh_r, self.boat_r = boat_array_reduction(**dic) #, self.boat)
 
-    windfield = generate_wind_field(n_steps=self.resolution, maximum=self.size)
-    self._state = {'wind' : windfield, 'done': False}
-    self.state = {'wind' : np.array([windfield['twh'], windfield['tws']]),
-                  'position' : np.array([generate_random_point(self.size, pos=True),generate_random_point(self.size, pos=True)]), 
-                  'boat' : self.boat_r                  
-                  }
-    self.boat_max_speed = np.max(self.boat) # needs to be updated in case of function and continuity
+    # windfield = generate_wind_field(n_steps=self.resolution, maximum=self.size)
+    # self._state = {'wind' : windfield, 'done': False}
+    # self.state = {'wind' : np.array([windfield['twh'], windfield['tws']]),
+                  # 'position' : np.array([generate_random_point(self.size, pos=True),generate_random_point(self.size, pos=True)]), 
+                  # 'boat' : self.boat_r                  
+                  # }
+
+    # engine position knowledge
+    self._state = {'position' :  np.array([generate_random_point(self.size, pos=True),generate_random_point(self.size, pos=True)]), 'done' : False} 
+    # model position knowledge picture
+    self.state = {'position' : np.zeros(self.size, self.size)}
+    self.state['position'][self._state['position'][1][0],self._state['position'][1][1]] = 1
+    self.state['position'][self._state['position'][0][0],self._state['position'][0][1]] = 2
+
+    self.boat_max_speed = 3  # np.max(self.boat) # needs to be updated in case of function and continuity
     self.render_first = True
     self.course_traversed = []
     # self._state.update({'done': False})
