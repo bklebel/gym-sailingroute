@@ -30,22 +30,22 @@ PI = 3.14159265358979323846264338327
 #     pass
 def load_boat(file='bavaria_match.dat'):
     """ loads a polar diagram with y axis being TWA, x axis being TWS
-      returns a scipy function object, with following usage: 
+      returns a scipy function object, with following usage:
 
       boat_speed = f(TWS, TWA)
 
-      A TWA > 180 needs to be changed to 360-TWA. 
+      A TWA > 180 needs to be changed to 360-TWA.
 
-      the file needs to be like this (default bavaria match): 
-      0     6 8  10   12  14  16    20  
-      52     5.57 6.65 7.15 7.43 7.61 7.72 7.80 
-      60     5.97 6.93 7.45 7.73 7.87 7.95 8.03 
-      75     6.34 7.15 7.71 8.01 8.17 8.27 8.41 
-      90     6.36 7.31 7.88 8.08 8.25 8.51 8.79 
-      110    6.23 7.17 7.80 8.16 8.52 8.77 9.10 
-      120    5.84 6.93 7.60 8.03 8.41 8.85 9.44 
-      135    5.03 6.30 7.10 7.69 8.07 8.44 9.33 
-      150    4.19 5.32 6.35 7.07 7.63 8.02 8.76 
+      the file needs to be like this (default bavaria match):
+      0     6 8  10   12  14  16    20
+      52     5.57 6.65 7.15 7.43 7.61 7.72 7.80 1
+      60     5.97 6.93 7.45 7.73 7.87 7.95 8.03
+      75     6.34 7.15 7.71 8.01 8.17 8.27 8.41
+      90     6.36 7.31 7.88 8.08 8.25 8.51 8.79
+      110    6.23 7.17 7.80 8.16 8.52 8.77 9.10
+      120    5.84 6.93 7.60 8.03 8.41 8.85 9.44
+      135    5.03 6.30 7.10 7.69 8.07 8.44 9.33
+      150    4.19 5.32 6.35 7.07 7.63 8.02 8.76
 
     """
     bavaria = np.loadtxt(file)
@@ -117,8 +117,8 @@ def boat_array_reduction(mesh, boat, **kwargs):
     # mesh = d['mesh']
     """this function takes in a boat array of shape (180, 40)
        and reduces it to (18, 20) - 180/10 and 40/2
-       this is for the discrete version: these arrays are given to the NN, 
-       while the original arrays are used for the underlying calculation of speed. 
+       this is for the discrete version: these arrays are given to the NN,
+       while the original arrays are used for the underlying calculation of speed.
        There, the respective wind will need to be rounded (down) to find the correct one
     """
     boat_new = boat[0::10, 0::2]
@@ -128,8 +128,8 @@ def boat_array_reduction(mesh, boat, **kwargs):
 
 
 def boat_to_array(boat, step_speed=2, step_angle=10, max_speed=40, max_angle=180, forplot=False):
-    """returns a regular spaced array for boatspeed at TWS and TWA, 
-       given the function boat(TWS, TWA) for a specific boat. 
+    """returns a regular spaced array for boatspeed at TWS and TWA,
+       given the function boat(TWS, TWA) for a specific boat.
     """
     TWS = np.arange(1, max_speed, step_speed)
     TWA = np.arange(1, max_angle, step_angle)
@@ -173,13 +173,13 @@ def generate_obstacle_function(maximum, x, y):
 
 
 def generate_wind_field(maximum=100, n_steps=10, plotting_scale=1):
-    '''generates a random wind field. first, random "obstacles" are introduced, 
-       and a vector field is generated between them. 
-       Then, every single wind component is turned by 15 degrees 
-       to the right, approximately corresponding to the influence of 
-       coriolis force on the northern hemisphere. 
-       This is done by converting to speed and heading, adjusting the heading, 
-       converting back to x and y components of the wind. 
+    '''generates a random wind field. first, random "obstacles" are introduced,
+       and a vector field is generated between them.
+       Then, every single wind component is turned by 15 degrees
+       to the right, approximately corresponding to the influence of
+       coriolis force on the northern hemisphere.
+       This is done by converting to speed and heading, adjusting the heading,
+       converting back to x and y components of the wind.
 
        the "real size", computationally
 
@@ -216,19 +216,19 @@ def generate_wind_field(maximum=100, n_steps=10, plotting_scale=1):
 
 def deghead2rad(heading):
     '''sailing angle to math angle conversion
-       math angle in radians       
+       math angle in radians
     '''
     return np.radians(90 - heading)
 
 
 def speed_continuos(x, y, heading, weather, boat):
-    """ Calculates the boat speed at a given time, 
+    """ Calculates the boat speed at a given time,
         given the complete weather data (predicted at a specific time, for 240h in the future), polardiagram and heading
-        boat takes a function! 
+        boat takes a function!
 
         tws = sqrt(u2+v2)
         twh = arctan2(v/u).
-        twa = abs(heading - twh) 
+        twa = abs(heading - twh)
     """
     u = weather['u'](x, y)[0][0]  # still broken !!!!!!
     v = weather['v'](x, y)[0][0]
@@ -244,15 +244,15 @@ def speed_continuos(x, y, heading, weather, boat):
 
 
 def _speed_slow(x, y, heading, weather, boat):
-    """ Calculates the boat speed at a given time, 
+    """ Calculates the boat speed at a given time,
         given the complete weather data (predicted at a specific time, for 240h in the future), polardiagram and heading
-        boat takes an array! 
+        boat takes an array!
 
         tws = sqrt(u2+v2)
         twh = arctan2(v/u).
-        twa = abs(heading - twh) 
+        twa = abs(heading - twh)
 
-        does it in a discrete fashion, rounding tws and twh, and searching for the corresponding boatspeed 
+        does it in a discrete fashion, rounding tws and twh, and searching for the corresponding boatspeed
         in the discrete boat-array
     """
     u = weather['u'](x, y)[0][0]  # still broken !!!!!! - really?
