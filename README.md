@@ -1,4 +1,7 @@
 # gym-sailingroute
 An environment for routing of sailing boats - unfinished
 
-Currently it handles boats on understandably small grid-worlds, later it should be applied to the real world weather, forecasts and gps data
+This is designed for a reinforcement-like approach to this multidimensional path planning problem, which involves dynamically (continuously) changing environments, which include uncertainty in itself (weather forecast is not perfect). 
+Possibly this is not the most efficient way how to adress this problem. 
+
+Currently the environment handles boats on understandably small grid-worlds (can be altered and expanded easily), later it should be applied to the real world weather, forecasts, gps and boat data
